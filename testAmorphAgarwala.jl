@@ -1,5 +1,5 @@
-close("all")
 include("tb.jl")
+close("all")
 
 # set up a model (amorphous system with AII-class hopping)
 tb = TBmodel()
