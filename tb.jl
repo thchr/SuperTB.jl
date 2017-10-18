@@ -110,7 +110,7 @@ end
 
 #= --------------------------------------------------------- =#
 function buildHoneycombRestriction{T<:Real}(restrictfun::Function, 
-                                   maxscale::T)
+                                            maxscale::T)
 	@assert(maxscale>0,"maxscale must be a positive value")
 
 	intralat = [ [sqrt(3)*0.5, 0.5], [0.0, 1.0] ]
@@ -169,13 +169,16 @@ end
 
 
 #= --------------------------------------------------------- =#
-function solve(tb::TBmodel)
+function solve(tb::TBmodel; eigvecflag::Bool=0)
 	H = setHopping!(tb)
-	ε = eigvals(full(H))
+    if !eigvecflag
+    	ε = eigvals(full(H))
+        return ε
+    else
+        (ε,eigvec) = eig(full(H))
+        return ε, eigvec
+    end
 	
-	figure()
-	plot(ε,".")
-	return ε
 end
 
 
