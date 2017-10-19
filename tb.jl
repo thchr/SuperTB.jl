@@ -10,11 +10,13 @@ mutable struct TBmodel{T<:Real}
     basisdim::Integer        # dimension of basis on each site (must be same everywhere, for now)
 #    lat::AbstractVector{AbstractVector{T}}       # lattice vectors
 end
-TBmodel() = TBmodel( Array{Float64}(0,2),      # pos
-                     falses(2),                # periodicity
-					 Vector{Vector{Int}}(0),   # neighbors
-					 (x,y) -> zero(eltype(x)), # hopfun
-                     1 )                       # basisdim
+
+# initiate an essentially empty/useless TBmodel struct
+TBmodel() = TBmodel( Array{Float64}(0,2),    # pos
+                     falses(2),              # periodicity
+					 Vector{Vector{Int}}(0), # neighbors
+					 () -> nothing,          # hopfun
+                     1 )                     # basisdim
 
 
 #= --------------------------------------------------------- =#

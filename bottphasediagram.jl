@@ -9,8 +9,8 @@ tb.basisdim = 2
 
 # run over this parameter range 
 M = linspace(-4.5,4.5,50)
-sites = 24^2:24^2; 72:72:24^2 #:8:8:24^2
-Nsamples = 10 # number of samples in ensemble
+sites = 12:12:24^2 
+Nsamples = 1 # number of samples in ensemble
 
 β = zeros(length(M),length(sites),Nsamples)
 
