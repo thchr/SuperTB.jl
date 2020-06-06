@@ -10,13 +10,11 @@ mutable struct TBmodel{T<:Real}
     basisdim::Integer        # dimension of basis on each site (must be same everywhere, for now)
 #    lat::AbstractVector{AbstractVector{T}}       # lattice vectors
 end
-
-# initiate an essentially empty/useless TBmodel struct
-TBmodel() = TBmodel( Array{Float64}(0,2),    # pos
-                     falses(2),              # periodicity
-					 Vector{Vector{Int}}(0), # neighbors
-					 () -> nothing,          # hopfun
-                     1 )                     # basisdim
+TBmodel() = TBmodel( Array{Float64}(0,2),      # pos
+                     falses(2),                # periodicity
+					 Vector{Vector{Int}}(0),   # neighbors
+					 (x,y) -> zero(eltype(x)), # hopfun
+                     1 )                       # basisdim
 
 
 #= --------------------------------------------------------- =#
@@ -221,6 +219,20 @@ function hopAgarwala{T<:Real}(ri::AbstractVector{T}, rj::AbstractVector{T},
         t = [(2+M) (1-im)*λ; (1+im)*λ -(2+M)] # this term must be Hermitian though
     end
 
+end
+
+#= --------------------------------------------------------- =#
+function plot(tb::TBmodel; plothopping::Bool=0)
+	figure()
+	if plothopping
+		for site in eachindex(tb.neighbors)    # takes a lot of time to plot all 
+			for neighbor in tb.neighbors[site] # neighbor connections, unfortunately
+				plot(tb.pos[[site,neighbor],1],tb.pos[[site,neighbor],2],"-",color="gray")
+			end
+		end 
+	end
+	plot(tb.pos[:,1],tb.pos[:,2],".k")
+	axis("equal")
 end
 
 

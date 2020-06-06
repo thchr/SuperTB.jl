@@ -3,9 +3,10 @@ using ProgressMeter
 
 function bott{T<:Number}(eigvec::AbstractArray{T},
                          tb::TBmodel,
-                         outputRange::Union{UnitRange,Integer}=1:size(eigvec,2))
+                         outputRange::Union{UnitRange,Integer}=1:size(eigvec,2)
+                         )
 
-    θx = tb.pos[:,1].*(2*pi) # assuming x and y to be between 0 and 1 
+    θx = tb.pos[:,1].*(2*pi) # assuming x and y to be between 0 and 1
     θy = tb.pos[:,2].*(2*pi)
 
     expx = exp.(im*θx)

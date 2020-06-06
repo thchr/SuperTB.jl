@@ -1,4 +1,3 @@
-using Iterators
 using ProgressMeter
 
 # we assume that kspan is created by a command like
@@ -23,7 +22,7 @@ function sdos{T<:Number}(eigval::AbstractArray{S} where S<:Real,
         expfac .= exp.(im* ( kspan[kindex][1].*tb.pos[:,1] .+
                              kspan[kindex][2].*tb.pos[:,2] ) ) 
 
-        eigvec_k_abs2 .= abs.(squeeze(sum( repmat(expfac,2) .* eigvec, 1),1)).^2
+        eigvec_k_abs2 .= abs.(squeeze(sum( repmat(expfac,tb.basisdim) .* eigvec, 1),1)).^2
 
         for eneindex = CartesianRange(size(enespan))
             
