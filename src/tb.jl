@@ -1,34 +1,31 @@
-using PyPlot
-import Base.Math
-
 #= --------------------------------------------------------- =#
-mutable struct TBmodel{T<:Real}
-    pos::AbstractArray{T,2}  # position of elements in unit cell
-    periodicity::AbstractVector{Bool} # periodicity along latx,laty,latz (boolean = yes/no)
-    neighbors::AbstractArray{Q} where Q <: AbstractArray{S} where S<: Integer # neighboring indices
-	hopfun::Function 		 # hopping function (input is two positions; output is basisdim×basisdim array)
-    basisdim::Integer        # dimension of basis on each site (must be same everywhere, for now)
-#    lat::AbstractVector{AbstractVector{T}}       # lattice vectors
+mutable struct TBModel{T<:Real}
+    pos::Matrix{T}  		# position of elements in unit cell
+    periodicity::BitVector  # periodicity along latx,laty,latz (boolean = yes/no)
+    neighbors::Vector{Vector{Int}} # neighboring indices
+	hopfun::Function        # hopping function (input is two positions; output is basisdim×basisdim array)
+    basisdim::Int           # dimension of basis on each site (must be same everywhere, for now)
 end
-TBmodel() = TBmodel( Array{Float64}(0,2),      # pos
-                     falses(2),                # periodicity
-					 Vector{Vector{Int}}(0),   # neighbors
-					 (x,y) -> zero(eltype(x)), # hopfun
-                     1 )                       # basisdim
+TBModel(hopfun) = TBModel( Matrix{Float64}(undef,0,2),  # pos
+                     falses(2),                   # periodicity
+					 Vector{Vector{Int}}(),       # neighbors
+					 hopfun,                      # hopfun
+                     1)                           # basisdim
 
 
 #= --------------------------------------------------------- =#
-function interDistance{T<:Real}(ri::AbstractVector{T},
-                                rj::AbstractVector{T},
-                                periodicity::AbstractVector{Bool}=[false,false])
+function interDistance(ri::AbstractVector{<:Real}, rj::AbstractVector{<:Real},
+					   periodicity::AbstractVector{Bool}=falses(length(first(ri))))
 
+	# TODO: get rid of all the array allocations here...!
 	# not periodic in any dimension; regular flat metric
-	if iszero(periodicity) 
-		return sqrt( sum( (ri - rj).^2 ) )
+	if all(!, periodicity)
+		return sqrt( sum( abs2.(ri - rj) ) )
 
 	# periodic in some directions; use distance on a flat n-torus,
 	# with n = sum(periodicity)
 	else 
+		# TODO: don't hardcode this to a [0,1]² box
 		s = zero(eltype(ri))
 		rij = abs.(ri - rj)
 		for xyz in eachindex(ri)
@@ -45,14 +42,14 @@ end
 
 
 #= --------------------------------------------------------- =#
-function interAngle{T<:Real}(ri::AbstractVector{T},
-                             rj::AbstractVector{T},
-                             periodicity::AbstractVector{Bool}=[false,false])
+function interAngle(ri::AbstractVector{<:Real}, rj::AbstractVector{<:Real},
+                    periodicity::AbstractVector{Bool}=falses(length(first(ri))))
     #= calculates the angle between two 2D points ri and rj, on a
        possibly periodic (flat) manifold =#
     rij = ri - rj
     for xy = 1:2 # fold to shortest distance over periodic directions
-        if periodicity[xy] 
+		if periodicity[xy] 
+			# TODO: Don't hardcode this to a [0,1]² box...
             if abs(rij[xy]) > abs(rij[xy]-1)
                 rij[xy] -= 1
             elseif abs(rij[xy]) > abs(rij[xy]+1)
@@ -60,24 +57,25 @@ function interAngle{T<:Real}(ri::AbstractVector{T},
             end
         end
     end
-    return atan2(rij[2],rij[1])
+    return atan(rij[2],rij[1])
 end
 
 
 #= --------------------------------------------------------- =#
-function setHopping!(tb::TBmodel)
-	n = size(tb.pos,1)
-    basisiter = 1:tb.basisdim
-    H = spzeros(Complex{Float64}, n*tb.basisdim, n*tb.basisdim)
+function setHopping!(tb::TBModel)
 
-	#=  fill upper triangle with hopping amplitude by evaluating
+	n = size(tb.pos,1)
+    basisiter = Base.OneTo(tb.basisdim)
+    H = spzeros(ComplexF64, n*tb.basisdim, n*tb.basisdim)
+
+	#= fill upper triangle with hopping amplitude by evaluating
     the function hopfun as a function of (i,j)-positions  =#
-	for i = 1:n
+	for i = Base.OneTo(n)
 		for j = (i+1):n
 			t = tb.hopfun(tb.pos[i,:], tb.pos[j,:], tb.periodicity)
             for k = basisiter
                 for l = basisiter
-                    if t[k,l] != zero(eltype(t))
+                    if !iszero(t[k,l])
                         H[i+(k-1)*n,j+(l-1)*n] = t[k,l]  # upper triangular part
                     end
                 end
@@ -100,25 +98,26 @@ function setHopping!(tb::TBmodel)
     end
 
 	# set neighbors (useful for visualization and analysis)
-	tb.neighbors = Vector{Vector{Int}}(n)
+	tb.neighbors = Vector{Vector{Int}}(undef, n)
 	for i = 1:n
-		tb.neighbors[i] = find(H[i,1:n])
+		# TODO: This is a horrible way to do this with a sparse array, lol... Should use a 
+		#		combination of column iteration and nzrange instead...
+		tb.neighbors[i] = findall(!iszero, H[i,1:n])
 	end
 
 	return H
 end
 
 #= --------------------------------------------------------- =#
-function buildHoneycombRestriction{T<:Real}(restrictfun::Function, 
-                                            maxscale::T)
-	@assert(maxscale>0,"maxscale must be a positive value")
+function buildHoneycombRestriction(restrictfun::Function, maxscale::Real)
+	maxscale≤0 && throw(DomainError(maxscale, "maxscale must be a positive value"))
 
 	intralat = [ [sqrt(3)*0.5, 0.5], [0.0, 1.0] ]
 	shiftmag = 0.5/sqrt(3)
 	steplist = -round(1.25*maxscale):round(1.25*maxscale)
 
-	posa = Array{Float64}(0,2) # initialize arrays
-	posb = copy(posa)
+	posa = Matrix{Float64}(undef, 0,2) # initialize arrays
+	posb = similar(posa)
 
 	# grow A and B sublattice arrays if points inside restriction			
 	for n = steplist
@@ -142,7 +141,7 @@ function buildHoneycombRestriction{T<:Real}(restrictfun::Function,
 		dangleremoved = 0
 
 		# fix A lattice
-		delrows=Vector{Int}(0)
+		delrows = Int[]
 		for i in 1:size(posa,1)
 			nneighbors = sum(map((x,y) -> interDistance(posa[i,:], [x,y]), posb[:,1], posb[:,2]) .< 0.58)
 			if nneighbors < 2 # dangling bond
@@ -153,7 +152,7 @@ function buildHoneycombRestriction{T<:Real}(restrictfun::Function,
 		dangleremoved += length(delrows) 
 
 		# fix B lattice
-		delrows=Vector{Int}(0)
+		delrows = Int[]
 		for i in 1:size(posb,1)
 			nneighbors = sum(map((x,y) -> interDistance([x,y], posb[i,:]), posa[:,1], posa[:,2]) .< 0.58) 
 			if nneighbors < 2 # dangling bond
@@ -169,73 +168,60 @@ end
 
 
 #= --------------------------------------------------------- =#
-function solve(tb::TBmodel; eigvecflag::Bool=0)
+function solve(tb::TBModel; eigvecflag::Bool=false)
 	H = setHopping!(tb)
     if !eigvecflag
-    	ε = eigvals(full(H))
+    	ε = eigvals(Hermitian(Matrix(H)))
         return ε
     else
-        (ε,eigvec) = eig(full(H))
-        return ε, eigvec
+        F = eigen(Hermitian(Matrix(H)))
+        return F.values, F.vectors
     end
 	
 end
 
 
 #= --------------------------------------------------------- =#
-function hopHoneycomb{T<:Real}(ri::AbstractVector{T}, rj::AbstractVector{T},
-                               periodicity::AbstractVector{Bool})
+function hopHoneycomb(ri::AbstractVector{<:Real}, rj::AbstractVector{<:Real},
+                      periodicity::AbstractVector{Bool}=falses(length(first(ri))))
     #= Nearest neighbor hopping on a honeycomb (graphene-like) lattice 
        with unity hopping amplitude =#
-	a = interDistance(ri,rj,periodicity)
-	t = a>0 && a<.58 ? -1 : 0
+	a = interDistance(ri, rj, periodicity)
+	t = a<.58 ? -1.0 : 0.0
 
 end
 
 #= --------------------------------------------------------- =#
-function hopAgarwala{T<:Real}(ri::AbstractVector{T}, rj::AbstractVector{T},
-                              periodicity::AbstractVector{Bool},
-                              R=1.0/6, M=-0.5, t₂=0.25, λ=0.5, a=1.0/24)
+function hopAgarwala(ri::AbstractVector{<:Real}, rj::AbstractVector{<:Real},
+                     periodicity::AbstractVector{Bool}=trues(length(first(ri))),
+                     R=1.0/6, M=-0.5, t₂=0.25, λ=0.5, a=1.0/24)
     #= Implementation of the hopping type described in Eq. (5) of Agarwala & 
        Shenoy, PRL 118, 236402 (2017) =#
 
 	r = interDistance(ri, rj, periodicity)
     
     if r > R
-        t = zeros(Complex{Float64}, 2, 2)
+		t = zeros(ComplexF64, 2, 2)
     elseif r > zero(eltype(r))
-        ϕ = interAngle(ri, rj, periodicity) # will work properly also in periodic cases
+        ϕ = interAngle(ri, rj, periodicity) # works properly also in periodic cases
 
         # the minus sign in front of exp _must_ be there in front of _both_
         # offdiag terms in order to get the right result; i.e. t is not Hermitian 
-        # on its own (but H is still Hermitian, by construction)
-        offdiagᴬᴮ = ( - exp(-ϕ*im)*im + λ*(sin(ϕ)^2*(1+im)-1) ) / 2
-        offdiagᴮᴬ = ( - exp(+ϕ*im)*im + λ*(sin(ϕ)^2*(1-im)-1) ) / 2 
+		# on its own (but H is still Hermitian, by construction)
+		imcisϕ = -cis(-ϕ)*im
+		sin²ϕ  = sin(ϕ)^2
+        offdiagᴬᴮ = ( imcisϕ + λ*(sin²ϕ*(1+im)-1) ) / 2
+        offdiagᴮᴬ = ( imcisϕ + λ*(sin²ϕ*(1-im)-1) ) / 2 
         diagᴬᴬ = 0.5 * (-1 + t₂)
         diagᴮᴮ = 0.5 * (+1 + t₂)
 
-        t = e * exp(-r/a) .* [ diagᴬᴬ offdiagᴬᴮ; offdiagᴮᴬ diagᴮᴮ ]
-    else
+        t = exp(1 - r/a) .* [ diagᴬᴬ offdiagᴬᴮ; offdiagᴮᴬ diagᴮᴮ ]
+    else # on-site/self term (r=0)
         t = [(2+M) (1-im)*λ; (1+im)*λ -(2+M)] # this term must be Hermitian though
     end
 
+	return t
 end
-
-#= --------------------------------------------------------- =#
-function plot(tb::TBmodel; plothopping::Bool=0)
-	figure()
-	if plothopping
-		for site in eachindex(tb.neighbors)    # takes a lot of time to plot all 
-			for neighbor in tb.neighbors[site] # neighbor connections, unfortunately
-				plot(tb.pos[[site,neighbor],1],tb.pos[[site,neighbor],2],"-",color="gray")
-			end
-		end 
-	end
-	plot(tb.pos[:,1],tb.pos[:,2],".k")
-	axis("equal")
-end
-
-
 
 #= --------------------------------------------------------- =#
 circularRestriction(r,a) = sqrt(sum(r.^2)) < a
