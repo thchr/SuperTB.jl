@@ -7,14 +7,14 @@ function bott(eigvec::AbstractMatrix{<:Number}, tb::TBModel,
     expx = repeat(cis.(tb.pos[:,1].*(2π)), tb.basisdim)
     expy = repeat(cis.(tb.pos[:,2].*(2π)), tb.basisdim)
 
-    if size(eigvec, 2) ≠ maximum(outputRange)
+    if outputRange != 1:size(eigvec, 2)
         eigvec = @view eigvec[:,outputRange]
     end
 
     X = eigvec'*(expx.*eigvec)
     Y = eigvec'*(expy.*eigvec)
 
-    β = zeros(Float64, size(outputRange))
+    β = zeros(Float64, length(outputRange))
     @showprogress 2 "Computing Bott indices ..." for idx in eachindex(outputRange)
         # Not worth it to do views here, I think; BLAS is more important than GC...
         X′ = X[Base.OneTo(idx), Base.OneTo(idx)]

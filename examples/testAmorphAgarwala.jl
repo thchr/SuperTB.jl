@@ -5,9 +5,9 @@ close("all")
 # set up a model (amorphous system with AII-class hopping)
 hop = (ri, rj, per) -> hopAgarwala(ri, rj, per)
 tb = TBModel(hop)
-tb.pos = rand(24^2,2) #rand(576,2)
-tb.periodicity=trues(2) # periodic boundary conditions
-tb.basisdim = 2
+tb.pos         = rand(24^2,2) #rand(576,2)
+tb.periodicity = trues(2) # periodic boundary conditions
+tb.basisdim    = 2
 
 # solve the system
 ε, eigvec = solve(tb; eigvecflag=true)
@@ -35,4 +35,5 @@ plot(εˢ, dosˢ, "-k")
 bottatindices = size(tb.pos,1) .+ (-150:150) # focus on the middle part of the spectrum...
 β = bott(eigvec, tb, bottatindices)
 figure()
-plot(ε[bottatindices],β,".-")
+# TODO: Does this actually work? Seems like we broke it? 8 June, 2020
+plot(ε[bottatindices], β, ".-")
